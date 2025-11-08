@@ -85,11 +85,11 @@ public class Server {
     protected ServerThread thread;
 
     /* -----------------------------------------------Constructors--------------------------------------------------- */
-    protected Server(Consumer<Serializable> callback) {
+    public Server(Consumer<Serializable> callback) {
         this.callback = callback;
         this.clients = new CopyOnWriteArrayList<>();
-        thread = new ServerThread();
-        thread.start();
+        this.thread = new ServerThread();
+        this.thread.start();
     }
 
     /* -------------------------------------------------Methods------------------------------------------------------ */
@@ -104,7 +104,7 @@ public class Server {
     }
 
     public void updateClients(String message) {
-        for (ClientThread client : clients) {
+        for (ClientThread client : this.clients) {
             try {
                 client.out.writeObject(message);
                 client.out.flush();

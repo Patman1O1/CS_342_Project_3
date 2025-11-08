@@ -3,12 +3,17 @@ package edu.project3.io;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
+import java.net.ConnectException;
 import java.net.Socket;
 import java.util.function.Consumer;
 
+import javafx.application.Platform;
+import javafx.scene.control.Alert;
+import javafx.scene.control.ButtonType;
+
 public class Client extends Thread {
     /* --------------------------------------------------Fields------------------------------------------------------ */
-    private Consumer<Serializable> callback;
+    protected Consumer<Serializable> callback;
 
     protected Socket socket;
 
@@ -32,13 +37,23 @@ public class Client extends Thread {
 
             // Create an input stream
             this.in = new ObjectInputStream(this.socket.getInputStream());
+        } catch (ConnectException e) {
+            handleConnectException(e);
         } catch (Exception e) {
             handleException(e);
         }
     }
 
     /* -------------------------------------------------Methods------------------------------------------------------ */
+    private static void handleConnectException(ConnectException e) {
+        System.err.printf("Exception thrown with description \"%s\"\n", e.getMessage());
+        e.printStackTrace();
+        new Alert(Alert.AlertType.ERROR, "Unable to connect to the server.", ButtonType.OK).showAndWait();
+        Platform.exit();
+    }
+
     private static void handleException(Exception e) {
+        // Print a message
         System.err.printf("Exception thrown with description \"%s\"\n", e.getMessage());
         e.printStackTrace();
     }
