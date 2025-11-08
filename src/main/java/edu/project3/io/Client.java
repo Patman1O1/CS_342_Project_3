@@ -19,11 +19,19 @@ public class Client extends Thread {
     /* -----------------------------------------------Constructors--------------------------------------------------- */
     public Client(Consumer<Serializable> callback) {
         try {
+            // Assign the callback
             this.callback = callback;
+
+            // Create the socket
             this.socket = new Socket("127.0.0.1", 5555);
             this.socket.setTcpNoDelay(true);
-            this.in = new ObjectInputStream(socket.getInputStream());
-            this.out = new ObjectOutputStream(socket.getOutputStream());
+
+            // Create an output stream and flush it
+            this.out = new ObjectOutputStream(this.socket.getOutputStream());
+            this.out.flush();
+
+            // Create an input stream
+            this.in = new ObjectInputStream(this.socket.getInputStream());
         } catch (Exception e) {
             handleException(e);
         }
@@ -37,19 +45,32 @@ public class Client extends Thread {
 
     @Override
     public void run() {
-        while(true) {
+        // While the socket is connected to the server...
+        while(!this.socket.isClosed()) {
             try {
                 String message = this.in.readObject().toString();
                 this.callback.accept(message);
             } catch(Exception e) {
                 handleException(e);
+                break;
             }
         }
     }
 
-    public void send(String data) {
+    public void send(Object data) {
         try {
             this.out.writeObject(data);
+            this.out.flush();
+        } catch (Exception e) {
+            handleException(e);
+        }
+    }
+
+    public void close() {
+        try {
+            this.socket.close();
+            this.in.close();
+            this.out.close();
         } catch (Exception e) {
             handleException(e);
         }

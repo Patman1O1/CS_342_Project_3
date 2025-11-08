@@ -7,97 +7,78 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.function.Consumer;
 import java.util.List;
-import java.util.ArrayList;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class Server {
     /* -----------------------------------------------Server Thread-------------------------------------------------- */
     public class ServerThread extends Thread {
-        /* -------------------------------------------Client Thread-------------------------------------------------- */
-        protected class ClientThread extends Thread {
-            /* ------------------------------------------Fields------------------------------------------------------ */
-            protected Socket socket;
-
-            protected ObjectInputStream in;
-
-            protected ObjectOutputStream out;
-
-            protected int count;
-
-            /* ---------------------------------------Constructors--------------------------------------------------- */
-            protected ClientThread(Socket socket, int count) {
-                try {
-                    this.socket = socket;
-                    this.in = new ObjectInputStream(socket.getInputStream());
-                    this.out = new ObjectOutputStream(socket.getOutputStream());
-                    this.count = count;
-                } catch (Exception e) {
-                    Server.handleException(e, "Streams not open");
-                }
-            }
-
-            /* -----------------------------------------Methods------------------------------------------------------ */
-            public void messageClients(String message) {
-                for (ClientThread client : clients) {
-                    try {
-                        client.out.writeObject(message);
-                    } catch (Exception e) {
-                        Server.handleException(e);
-                    }
-                }
-            }
-
-            @Override
-            public void run() {
-                while (true) {
-                    try {
-                        String data = this.in.readObject().toString();
-                        callback.accept("Client: #" + this.count + " Data: " + data);
-                        this.messageClients("Client #" + this.count + " sent: " + data);
-                    } catch (Exception e) {
-                        this.messageClients("Client #" + this.count + " left the server");
-                        clients.remove(this);
-                        break;
-                    }
-                }
-            }
-        }
-
-        /* ----------------------------------------------Fields------------------------------------------------------ */
-        private ServerSocket socket;
-
-        /* -------------------------------------------Constructors--------------------------------------------------- */
-        public ServerThread() {
-            try {
-               this.socket = new ServerSocket(5555);
-            } catch (Exception e) {
-                Server.handleException(e, "Server socket not open");
-            }
-        }
-
-        /* ---------------------------------------------Methods------------------------------------------------------ */
-        @Override
+        /* ----------------------------------------------Methods----------------------------------------------------- */
         public void run() {
-            System.out.println("Server started");
+            try (ServerSocket serverSocket = new ServerSocket(5555)) {
+                System.out.println("Server is waiting for a client!");
 
-            while (true) {
-                try {
-                    ClientThread client = new ClientThread(this.socket.accept(), clientCount);
-                    callback.accept(String.format("Client #%d connected to the server", clientCount));
+                while (!serverSocket.isClosed()) {
+                    ClientThread client = new ClientThread(serverSocket.accept(), clientCount);
+                    callback.accept("Client has connected to server: " + "Client #" + clientCount);
                     clients.add(client);
                     client.start();
                     ++clientCount;
-                } catch (Exception e) {
-                    Server.handleException(e);
                 }
+            } catch (Exception e) {
+                callback.accept("Server socket did not launch");
+                handleException(e);
             }
         }
     }
 
+    /* -----------------------------------------------Client Thread-------------------------------------------------- */
+    protected class ClientThread extends Thread {
+        /* ----------------------------------------------Fields------------------------------------------------------ */
+        protected Socket socket;
+
+        protected int count;
+
+        protected ObjectInputStream in;
+
+        protected ObjectOutputStream out;
+
+        /* -------------------------------------------Constructors--------------------------------------------------- */
+        protected ClientThread(Socket socket, int count) {
+            try {
+                this.socket = socket;
+                this.count = count;
+                this.out = new ObjectOutputStream(this.socket.getOutputStream());
+                this.out.flush();
+                this.in = new ObjectInputStream(this.socket.getInputStream());
+                this.socket.setTcpNoDelay(true);
+            } catch (Exception e) {
+                handleException(e);
+            }
+        }
+
+        /* ---------------------------------------------Methods------------------------------------------------------ */
+        public void run() {
+            while (!this.socket.isClosed()) {
+                try {
+                    String data = this.in.readObject().toString();
+                    callback.accept("client: " + this.count + " sent: " + data);
+                    updateClients("client #" + this.count + " said: " + data);
+
+                } catch(Exception e) {
+                    callback.accept("OOOOPPs...Something wrong with the socket from client: " + count + "....closing down!");
+                    updateClients("Client #"+ this.count +" has left the server!");
+                    clients.remove(this);
+                    break;
+                }
+            }
+        }
+
+    }
 
     /* --------------------------------------------------Fields------------------------------------------------------ */
     private final Consumer<Serializable> callback;
 
-    protected List<ServerThread.ClientThread> clients;
+    protected List<ClientThread> clients;
 
     protected int clientCount;
 
@@ -106,9 +87,9 @@ public class Server {
     /* -----------------------------------------------Constructors--------------------------------------------------- */
     protected Server(Consumer<Serializable> callback) {
         this.callback = callback;
-        this.clients = new ArrayList<>();
-        this.thread = new ServerThread();
-        this.thread.start();
+        this.clients = new CopyOnWriteArrayList<>();
+        thread = new ServerThread();
+        thread.start();
     }
 
     /* -------------------------------------------------Methods------------------------------------------------------ */
@@ -122,6 +103,15 @@ public class Server {
         e.printStackTrace();
     }
 
-
+    public void updateClients(String message) {
+        for (ClientThread client : clients) {
+            try {
+                client.out.writeObject(message);
+                client.out.flush();
+            } catch (Exception e) {
+                handleException(e);
+            }
+        }
+    }
 
 }
