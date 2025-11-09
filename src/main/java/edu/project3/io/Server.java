@@ -1,5 +1,6 @@
 package edu.project3.io;
 
+import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
@@ -9,24 +10,20 @@ import java.util.function.Consumer;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-public class Server {
+public abstract class Server {
     /* -----------------------------------------------Server Thread-------------------------------------------------- */
     public class ServerThread extends Thread {
-        /* ----------------------------------------------Methods----------------------------------------------------- */
-        public void run() {
-            try (ServerSocket serverSocket = new ServerSocket(5555)) {
-                System.out.println("Server is waiting for a client!");
+        /* ----------------------------------------------Fields------------------------------------------------------ */
+        protected final ServerSocket serverSocket;
 
-                while (!serverSocket.isClosed()) {
-                    ClientThread client = new ClientThread(serverSocket.accept(), clientCount);
-                    callback.accept("Client has connected to server: " + "Client #" + clientCount);
-                    clients.add(client);
-                    client.start();
-                    ++clientCount;
-                }
-            } catch (Exception e) {
-                callback.accept("Server socket did not launch");
-                handleException(e);
+        /* --------------------------------------------Constructors-------------------------------------------------- */
+        public ServerThread() throws IOException { this.serverSocket = new ServerSocket(PORT); }
+
+        /* ----------------------------------------------Methods----------------------------------------------------- */
+        @Override
+        public void run() {
+            while (!this.serverSocket.isClosed()) {
+                acceptClient();
             }
         }
     }
@@ -36,47 +33,36 @@ public class Server {
         /* ----------------------------------------------Fields------------------------------------------------------ */
         protected Socket socket;
 
-        protected int count;
-
         protected ObjectInputStream in;
 
         protected ObjectOutputStream out;
 
         /* -------------------------------------------Constructors--------------------------------------------------- */
-        protected ClientThread(Socket socket, int count) {
-            try {
-                this.socket = socket;
-                this.count = count;
-                this.out = new ObjectOutputStream(this.socket.getOutputStream());
-                this.out.flush();
-                this.in = new ObjectInputStream(this.socket.getInputStream());
-                this.socket.setTcpNoDelay(true);
-            } catch (Exception e) {
-                handleException(e);
-            }
+        protected ClientThread(Socket socket) throws IOException {
+            this.socket = socket;
+            this.out = new ObjectOutputStream(this.socket.getOutputStream());
+            this.out.flush();
+            this.in = new ObjectInputStream(this.socket.getInputStream());
+            this.socket.setTcpNoDelay(true);
+            ++clientCount;
         }
 
         /* ---------------------------------------------Methods------------------------------------------------------ */
+        @Override
         public void run() {
             while (!this.socket.isClosed()) {
-                try {
-                    String data = this.in.readObject().toString();
-                    callback.accept("client: " + this.count + " sent: " + data);
-                    updateClients("client #" + this.count + " said: " + data);
-
-                } catch(Exception e) {
-                    callback.accept("OOOOPPs...Something wrong with the socket from client: " + count + "....closing down!");
-                    updateClients("Client #"+ this.count +" has left the server!");
-                    clients.remove(this);
-                    break;
-                }
+                handleClient();
             }
         }
 
     }
 
     /* --------------------------------------------------Fields------------------------------------------------------ */
-    private final Consumer<Serializable> callback;
+    private static final String HOST = "127.0.0.1";
+
+    private static final int PORT = 5555;
+
+    protected final Consumer<Serializable> callback;
 
     protected List<ClientThread> clients;
 
@@ -85,7 +71,7 @@ public class Server {
     protected ServerThread thread;
 
     /* -----------------------------------------------Constructors--------------------------------------------------- */
-    public Server(Consumer<Serializable> callback) {
+    public Server(Consumer<Serializable> callback) throws IOException {
         this.callback = callback;
         this.clients = new CopyOnWriteArrayList<>();
         this.thread = new ServerThread();
@@ -93,25 +79,8 @@ public class Server {
     }
 
     /* -------------------------------------------------Methods------------------------------------------------------ */
-    private static void handleException(Exception e) {
-        System.err.printf("Exception thrown with description \"%s\"\n", e.getMessage());
-        e.printStackTrace();
-    }
+    public abstract void acceptClient();
 
-    private static void handleException(Exception e, String message) {
-        System.err.println(message);
-        e.printStackTrace();
-    }
-
-    public void updateClients(String message) {
-        for (ClientThread client : this.clients) {
-            try {
-                client.out.writeObject(message);
-                client.out.flush();
-            } catch (Exception e) {
-                handleException(e);
-            }
-        }
-    }
+    public abstract void handleClient();
 
 }

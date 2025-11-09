@@ -1,0 +1,117 @@
+package edu.project3.io;
+
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.Serializable;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.util.function.Consumer;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+
+public class Server {
+    /* -----------------------------------------------Server Thread-------------------------------------------------- */
+    public class ServerThread extends Thread {
+        /* ----------------------------------------------Methods----------------------------------------------------- */
+        public void run() {
+            try (ServerSocket serverSocket = new ServerSocket(5555)) {
+                System.out.println("Server is waiting for a client!");
+
+                while (!serverSocket.isClosed()) {
+                    ClientThread client = new ClientThread(serverSocket.accept(), clientCount);
+                    callback.accept("Client has connected to server: " + "Client #" + clientCount);
+                    clients.add(client);
+                    client.start();
+                    ++clientCount;
+                }
+            } catch (Exception e) {
+                callback.accept("Server socket did not launch");
+                handleException(e);
+            }
+        }
+    }
+
+    /* -----------------------------------------------Client Thread-------------------------------------------------- */
+    protected class ClientThread extends Thread {
+        /* ----------------------------------------------Fields------------------------------------------------------ */
+        protected Socket socket;
+
+        protected int count;
+
+        protected ObjectInputStream in;
+
+        protected ObjectOutputStream out;
+
+        /* -------------------------------------------Constructors--------------------------------------------------- */
+        protected ClientThread(Socket socket, int count) {
+            try {
+                this.socket = socket;
+                this.count = count;
+                this.out = new ObjectOutputStream(this.socket.getOutputStream());
+                this.out.flush();
+                this.in = new ObjectInputStream(this.socket.getInputStream());
+                this.socket.setTcpNoDelay(true);
+            } catch (Exception e) {
+                handleException(e);
+            }
+        }
+
+        /* ---------------------------------------------Methods------------------------------------------------------ */
+        public void run() {
+            while (!this.socket.isClosed()) {
+                try {
+                    String data = this.in.readObject().toString();
+                    callback.accept("client: " + this.count + " sent: " + data);
+                    updateClients("client #" + this.count + " said: " + data);
+
+                } catch(Exception e) {
+                    callback.accept("OOOOPPs...Something wrong with the socket from client: " + count + "....closing down!");
+                    updateClients("Client #"+ this.count +" has left the server!");
+                    clients.remove(this);
+                    break;
+                }
+            }
+        }
+
+    }
+
+    /* --------------------------------------------------Fields------------------------------------------------------ */
+    private final Consumer<Serializable> callback;
+
+    protected List<ClientThread> clients;
+
+    protected int clientCount;
+
+    protected ServerThread thread;
+
+    /* -----------------------------------------------Constructors--------------------------------------------------- */
+    public Server(Consumer<Serializable> callback) {
+        this.callback = callback;
+        this.clients = new CopyOnWriteArrayList<>();
+        this.thread = new ServerThread();
+        this.thread.start();
+    }
+
+    /* -------------------------------------------------Methods------------------------------------------------------ */
+    private static void handleException(Exception e) {
+        System.err.printf("Exception thrown with description \"%s\"\n", e.getMessage());
+        e.printStackTrace();
+    }
+
+    private static void handleException(Exception e, String message) {
+        System.err.println(message);
+        e.printStackTrace();
+    }
+
+    public void updateClients(String message) {
+        for (ClientThread client : this.clients) {
+            try {
+                client.out.writeObject(message);
+                client.out.flush();
+            } catch (Exception e) {
+                handleException(e);
+            }
+        }
+    }
+
+}
