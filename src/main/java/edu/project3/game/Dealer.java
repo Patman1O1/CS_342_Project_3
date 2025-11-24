@@ -1,9 +1,10 @@
 package edu.project3.game;
 
-import edu.project3.io.Server;
-
-public class Dealer extends Server {
+public class Dealer {
     /* --------------------------------------------------Fields------------------------------------------------------ */
+    private Card[] cards;
+
+
 
     /* -----------------------------------------------Constructors--------------------------------------------------- */
 

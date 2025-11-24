@@ -1,33 +1,52 @@
 package edu.project3.game;
 
-public abstract class Card {
-    /* --------------------------------------------------Suite------------------------------------------------------- */
-    public enum Suit { Clubs, Diamonds, Hearts, Spades }
+import java.io.Serializable;
 
+public class Card implements Serializable, Comparable<Card> {
     /* --------------------------------------------------Fields------------------------------------------------------ */
-    protected Suit suit;
+    private final Suit suit;
+
+    private final Rank rank;
 
     /* -----------------------------------------------Constructors--------------------------------------------------- */
-    public Card(Suit suit) throws NullPointerException { this.setSuit(suit); }
-
-    /* -------------------------------------------------Setters------------------------------------------------------ */
-    public void setSuit(Suit suit) throws NullPointerException {
+    public Card(Suit suit, Rank rank) throws NullPointerException {
+        // Set the suit
         if (suit == null) {
             throw new NullPointerException("\"suit\" cannot be null");
         }
         this.suit = suit;
+
+        // Set the rank
+        if (rank == null) {
+            throw new NullPointerException("\"rank\" cannot be null");
+        }
+        this.rank = rank;
     }
 
     /* -------------------------------------------------Getters------------------------------------------------------ */
     public Suit getSuit() { return this.suit; }
 
+    public Rank getRank() { return this.rank; }
+
     /* -------------------------------------------------Methods------------------------------------------------------ */
     @Override
-    public abstract String toString();
+    public String toString() { return this.rank + " of " + this.suit; }
 
     @Override
-    public abstract boolean equals(Object object);
+    public boolean equals(Object object) {
+        if (!(object instanceof Card)) {
+            return false;
+        }
 
-    public abstract int compare(Card card);
+        return ((Card) object).suit == this.suit &&  this.rank == ((Card) object).rank;
+    }
+
+    @Override
+    public int compareTo(Card other) throws NullPointerException {
+        if (other == null) {
+            throw new NullPointerException("\"other\" cannot be null");
+        }
+        return Integer.compare(this.rank.value, other.rank.value);
+    }
 
 }
